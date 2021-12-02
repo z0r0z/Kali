@@ -1,11 +1,20 @@
 import React from "react";
-import { Container, ChakraProvider, Flex, Spinner, Center } from "@chakra-ui/react";
+import {
+  Container,
+  ChakraProvider,
+  Flex,
+  Spinner,
+  Center,
+} from "@chakra-ui/react";
 import Head from "next/head";
 import Nav from "./Nav";
+import LoadingIndicator from "./LoadingIndicator";
+import Footer from "./Footer";
 
 const Layout = (props) => {
   return (
     <>
+      {props.loading == true ? <LoadingIndicator /> : ""}
       <Head>
         <title>KaliDAO</title>
         <meta
@@ -14,10 +23,7 @@ const Layout = (props) => {
           key="title"
         />
       </Head>
-      { props.loading == true ?
-      <Center position="absolute" width="100%" height="100%" backgroundColor="grey" opacity=".4">
-        <Spinner size="xl" />
-      </Center> : '' }
+
       <Nav {...props} />
       <Container
         minheight="100vh"
@@ -27,6 +33,7 @@ const Layout = (props) => {
       >
         {props.children}
       </Container>
+      <Footer />
     </>
   );
 };

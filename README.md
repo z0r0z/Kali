@@ -98,15 +98,37 @@ Kali adopts standard security conventions, including a [`ReentrancyGuard`](https
 
 ## Deployments
 
+### Arbitrum
+
+KaliDAOfactory: [`0xd53B46aE3781904F1f61CF38Fd9d4F47A7e9242B`](https://arbiscan.io/address/0xd53b46ae3781904f1f61cf38fd9d4f47a7e9242b#code)
+
+FixedERC20factory: [`0xF85e8B97c058cb13DB8651217f69AD7D7efFf877`](https://arbiscan.io/address/0xF85e8B97c058cb13DB8651217f69AD7D7efFf877#code)
+
+KaliNFT: [`0x5F43Ff59ee5aE5a98cF59764C094e9aba830ecEE`](https://arbiscan.io/address/0x5F43Ff59ee5aE5a98cF59764C094e9aba830ecEE#code)
+
+LexLocker: [`0xc0d255983316d72e2CCa3bCd601a0d2D9b96D0F3`](https://arbiscan.io/address/0xc0d255983316d72e2CCa3bCd601a0d2D9b96D0F3#code)
+
 ### Polygon
 
-KaliDAOfactory: `0x33c8268e4A0ED135DDAc52Ea4CCE67F10e9605Cb`
+KaliDAOfactory: [`0x582eAF6a83E55d60615A5FfB80913bE5c1724c41`](https://polygonscan.com/address/0x582eaf6a83e55d60615a5ffb80913be5c1724c41#code)
+
+FixedERC20factory: [`0xafB6aC447f765a6BFD6B0D08D03a509D028BD11a`](https://polygonscan.com/address/0xafB6aC447f765a6BFD6B0D08D03a509D028BD11a#code)
+
+KaliNFT: [`0x1401B932839421B5db90cCd07417Bc4583e98729`](https://polygonscan.com/address/0x1401B932839421B5db90cCd07417Bc4583e98729#code)
+
+LexLocker: [`0x8D9779bFe26CC35eacF677b51e10BfFe9567EFc5`](https://polygonscan.com/address/0x8D9779bFe26CC35eacF677b51e10BfFe9567EFc5#code)
 
 ### Rinkeby
 
-KaliDAOfactory: `0xBc87B1A40796070d29e7aC8d08fB61D2A7685A27`
+KaliDAOfactory: [`0x6106375F8549fD1a688956F7070aa8bA3fdF51b2`](https://rinkeby.etherscan.io/address/0x6106375f8549fd1a688956f7070aa8ba3fdf51b2#code)
 
-![image](https://user-images.githubusercontent.com/92001561/143658630-be24588c-a5cd-481e-8be8-d4a5d23c4caa.png)
+FixedERC20factory: [`0x6aBab95BB30710159B3e40bF6e049f935547D12b`](https://rinkeby.etherscan.io/address/0x6aBab95BB30710159B3e40bF6e049f935547D12b#code)
+
+KaliNFT: [`0xA503f9F9350C5A6C5a550fa0FCA9fCE1dd5ab7c6`](https://rinkeby.etherscan.io/address/0xA503f9F9350C5A6C5a550fa0FCA9fCE1dd5ab7c6#code)
+
+LexLocker: [`0x5F0d15EF165D670F82510bb56a28B4bA48cf08Fc`](https://rinkeby.etherscan.io/address/0x5F0d15EF165D670F82510bb56a28B4bA48cf08Fc#code)
+
+![image](https://user-images.githubusercontent.com/92001561/144010284-91a1de05-951f-466c-8492-b0a5ea0b9de5.png)
 
 ## Contributors
 

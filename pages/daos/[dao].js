@@ -1,10 +1,8 @@
 import React, { Component } from "react";
-import { ChakraProvider, Container } from "@chakra-ui/react";
 const abi = require("../../abi/KaliDAO.json");
 import web3 from "../../eth/web3.js";
 import Router, { useRouter } from "next/router";
 import Layout from "../../components/Layout.js";
-import Link from 'next/link';
 import {
   chakra,
   Flex,
@@ -14,27 +12,16 @@ import {
   TabPanel,
   TabPanels,
   Stack,
-  Box,
   Text,
-  Spinner
 } from "@chakra-ui/react";
 import Proposals from "../../components/Proposals.js";
-import ProposeMember from "../../components/ProposeMember.js";
-import ProposeKickMember from "../../components/ProposeKickMember.js";
-import ProposeCall from "../../components/ProposeCall.js";
+import NewProposal from "../../components/NewProposal.js";
+import DaoInfo from "../../components/DaoInfo.js";
 
 class App extends Component {
-
   state = {
     loading: false,
-    account: null
   };
-
-  async componentDidMount() {
-    const accounts = await web3.eth.getAccounts();
-    const account = accounts[0];
-    this.setState({ account });
-  }
 
   static async getInitialProps({ query }) {
     // * dao params * //
@@ -53,6 +40,7 @@ class App extends Component {
     const supermajority = parseInt(
       await instance.methods.supermajority().call()
     );
+    const docs = await instance.methods.docs().call();
 
     const dao = {
       address,
@@ -65,199 +53,171 @@ class App extends Component {
       votingPeriod,
       quorum,
       supermajority,
+      docs,
     };
 
     // * get proposals - will need to add more logic - maybe using block.timestamp * //
     const proposals = [];
-    const proposalTypes = ["MINT", "BURN", "CALL", "PERIOD", "QUORUM", "SUPERMAJORITY", "PAUSE", "EXTENSION"];
+    const proposalTypes = [
+      "MINT",
+      "BURN",
+      "CALL",
+      "PERIOD",
+      "QUORUM",
+      "SUPERMAJORITY",
+      "PAUSE",
+      "EXTENSION",
+    ];
+    const eventData = await instance.getPastEvents("NewProposal", {
+      fromBlock: 0,
+      toBlock: "latest",
+    });
 
-    const cutoff = parseInt(Date.now() / 1000 - votingPeriod);
+    const cutoff = Date.now() / 1000 - parseInt(votingPeriod);
     for (var i = 0; i < proposalCount; i++) {
       var proposal = await instance.methods.proposals(i).call();
       var proposalArrays = await instance.methods.getProposalArrays(i).call();
       // * ignore empty proposals, as those are deleted ones * ///
-      if (proposal["creationTime"] != 0) {
+      if (parseInt(proposal["creationTime"]) != 0) {
         // probably better way to handle at scale
         // * add human-readable proposal type * //
         let proposalType = parseInt(proposal["proposalType"]);
         proposal["type"] = proposalTypes[proposalType];
+        let expires = new Date(
+          (parseInt(proposal["creationTime"]) + parseInt(votingPeriod)) * 1000
+        );
+        proposal["expires"] = expires.toLocaleString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+        });
         // * check if voting still open * //
         if (parseInt(proposal["creationTime"]) > cutoff) {
           proposal["open"] = true;
+          // time remaining
+          proposal["timeRemaining"] = cutoff - Date.now() / 1000;
         } else {
           proposal["open"] = false;
+          proposal["timeRemaining"] = 0;
         }
+        // add id to array
+        proposal["id"] = i;
         // integrate data from array getter function
-        proposal["amount"] = proposalArrays["amount"];
+        let amount = proposalArrays["amount"][0];
+        proposal["amount"] = web3.utils.fromWei(amount, "ether");
         proposal["account"] = proposalArrays["account"];
         proposal["payload"] = proposalArrays["payload"];
+
+        // format date for display
+        let created = new Date(parseInt(proposal["creationTime"]) * 1000);
+        proposal["created"] = created.toLocaleString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+        });
+
+        // get proposer
+        for (let j = 0; j < eventData.length; j++) {
+          if (eventData[j]["returnValues"]["proposal"] == i) {
+            proposal["proposer"] = eventData[j]["returnValues"]["proposer"];
+          }
+        }
 
         proposals.push(proposal);
       }
     }
 
-    return { dao, proposals };
-  }
+    // chain info
+    const chains = {
+      1: {
+        name: "mainnet",
+        explorer: "etherscan.io",
+      },
+      4: {
+        name: "rinkeby",
+        explorer: "https://rinkeby.etherscan.io/",
+      },
+      137: {
+        name: "polygon",
+        explorer: "https://polygonscan.com/",
+      },
+      42161: {
+        name: "arbitrum",
+        explorer: "https://arbiscan.io/",
+      },
+    };
 
-  submitProposal = async (event) => {
-    event.preventDefault();
-    this.setState({ loading: true });
-    console.log(this.state);
-    let object = event.target;
-    var array = [];
-    for (let i = 0; i < object.length; i++) {
-      array[object[i].name] = object[i].value;
+    const chainInfo = {};
+    const chainId = await web3.eth.getChainId();
+    if (chains[chainId] != null) {
+      chainInfo["explorer"] = chains[chainId]["explorer"];
+      chainInfo["name"] = chains[chainId]["name"];
+      chainInfo["chainId"] = chainId;
     }
 
-    var { dao, proposalType, description, account, amount, payload } = array;
-
-    const instance = new web3.eth.Contract(abi, dao);
-
-    if (proposalType == 1) {
-      amount = await instance.methods.balanceOf(account).call();
-    }
-
-    // convert units to wei for mint proposals - this should be covered for burn per balanceOf
-    if (proposalType == 0) {
-      amount = web3.utils.toWei(amount);
-    }
-
-    const accounts = await web3.eth.getAccounts();
-
-    try {
-      let result = await instance.methods
-        .propose(proposalType, description, [account], [amount], [payload])
-        .send({ from: accounts[0] });
-
-      Router.push({
-        pathname: "/daos/[dao]",
-        query: { dao: dao },
-      });
-
-    } catch (e) {
-        alert(e);
-        console.log(e);
-    }
-    this.setState({ loading: false });
-
-  }
-
-  vote = async () => {
-    event.preventDefault();
-
-    this.setState({ loading: true });
-
-    let object = event.target;
-    var array = [];
-    for (let i = 0; i < object.length; i++) {
-      array[object[i].name] = object[i].value;
-    }
-
-    const { dao, index, approval } = array;
-
-    const instance = new web3.eth.Contract(abi, dao);
-
-    const accounts = await web3.eth.getAccounts();
-    // * first, see if they already voted * //
-    const voted = await instance.methods.voted(index, accounts[0]).call();
-    if (voted == true) {
-      alert("You already voted");
-    } else {
-      let result = await instance.methods
-        .vote(index, parseInt(approval))
-        .send({ from: accounts[0] });
-      console.log(result);
-      this.setState({ loading: false });
-      Router.push({
-        pathname: "/daos",
-        query: { dao: dao },
-      });
-    }
-  }
-
-  process = async () => {
-    event.preventDefault();
-    this.setState({ loading: true });
-    let object = event.target;
-    var array = [];
-    for (let i = 0; i < object.length; i++) {
-      array[object[i].name] = object[i].value;
-    }
-
-    const { dao, index } = array;
-
-    const instance = new web3.eth.Contract(abi, dao);
-
-    const accounts = await web3.eth.getAccounts();
-    // * first, see if they already voted * //
-    let result = await instance.methods
-      .processProposal(index)
-      .send({ from: accounts[0] });
-    this.setState({ loading: false });
-    Router.push({
-      pathname: "/daos",
-      query: { dao: dao },
+    // get historical token holders
+    const holders = await instance.getPastEvents("Transfer", {
+      fromBlock: 0,
+      toBlock: "latest",
     });
+    const dupes = [];
+    // list that contains duplicates
+    for (let k = 0; k < holders.length; k++) {
+      let holder = holders[k]["returnValues"]["to"];
+      dupes[k] = holder;
+    }
+    // unique list of addresses
+    const uniques = dupes.filter((v, i, a) => a.indexOf(v) === i);
+
+    const holdersArray = [];
+    for (let k = 0; k < uniques.length; k++) {
+      let holder = uniques[k];
+      let shares = await instance.methods.balanceOf(holder).call();
+      if (shares > 0) {
+        holdersArray.push([holder, shares]);
+      }
+    }
+
+    return { dao, proposals, chainInfo, holdersArray };
   }
+
+  toggleLoading = () => {
+    this.setState({ loading: !this.state.loading });
+  };
 
   render() {
     console.log(web3.currentProvider);
     return (
-      <Layout {...this.props} account={this.state.account} loading={this.state.loading}>
-        <Stack spacing={5}>
-          <Flex alignItems="center" justifyContent="center">
-            <Text color="kali.800">
-              <b>{this.props.dao["name"]}</b> 
-            </Text>
-          </Flex>
+      <Layout
+        {...this.props}
+        account={this.state.account}
+        loading={this.state.loading}
+      >
+        <Tabs colorScheme="kali">
+          <TabList>
+            <Tab>Proposals</Tab>
+            <Tab>+ New Proposal</Tab>
+            <Tab>DAO Info</Tab>
+          </TabList>
 
-          <Box p={12} rounded={12}>
-            <Text fontWeight="bold">Existing Proposals</Text>
-            <Proposals
-              {...this.props}
-              vote={this.vote}
-              process={this.process}
-            />
-          </Box>
+          <TabPanels>
+            <TabPanel>
+              <Proposals {...this.props} toggleLoading={this.toggleLoading} />
+            </TabPanel>
 
-          <Box
-            bgGradient="linear(to-br, kali.200, kali.100)"
-            padding={12}
-            rounded={12}
-          >
-            <Text fontWeight="bold" color="kali.900">
-              Submit a Proposal
-            </Text>
-            <Tabs color="kali.900">
-              <TabList>
-                <Tab>Mint</Tab>
-                <Tab>Burn</Tab>
-                <Tab>Call</Tab>
-              </TabList>
+            <TabPanel>
+              <NewProposal {...this.props} toggleLoading={this.toggleLoading} />
+            </TabPanel>
 
-              <TabPanels>
-                <TabPanel>
-                  <ProposeMember
-                    {...this.props}
-                    submitProposal={this.submitProposal}
-                  />
-                </TabPanel>
-                <TabPanel>
-                  <ProposeKickMember
-                    {...this.props}
-                    submitProposal={this.submitProposal}
-                  />
-                </TabPanel>
-                <TabPanel>
-                  <ProposeCall
-                    {...this.props}
-                    submitProposal={this.submitProposal}
-                  />
-                </TabPanel>
-              </TabPanels>
-            </Tabs>
-          </Box>
-        </Stack>
+            <TabPanel>
+              <DaoInfo {...this.props} />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </Layout>
     );
   }
