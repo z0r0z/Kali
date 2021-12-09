@@ -1,88 +1,190 @@
-import React, { Component } from "react";
+import { useState, useContext, useEffect } from 'react';
 import Router, { useRouter } from "next/router";
-import web3 from "../eth/web3.js";
-const abi = require("../abi/KaliDAO.json");
+import AppContext from '../context/AppContext';
+import ProposalDetails from './ProposalDetails';
 import {
   chakra,
-  Input,
-  Button,
+  Center,
   Text,
-  Flex,
-  Box,
-  Select,
-  Badge,
-  Grid,
-  Icon,
-  IconButton,
-  Stack,
-  HStack,
-  VStack,
-  Spacer,
+  Grid
 } from "@chakra-ui/react";
-import FlexOutline from "./FlexOutline";
+import Layout from './Layout';
+const abi = require("../abi/KaliDAO.json");
+import ProposalRow from "./ProposalRow"
+import Message from "./Message"
+import { proposalTypes, voteTypes } from "../utils/appParams";
 
-import {
-  BsHandThumbsUpFill,
-  BsHandThumbsDownFill,
-  BsFillPersonPlusFill,
-  BsFillPersonXFill,
-  BsFillMegaphoneFill,
-} from "react-icons/bs";
+export default function Proposals(props) {
+  const [visibleView, setVisibleView] = useState(1);
+  const [proposals, setProposals] = useState(null);
+  const [activeProposal, setActiveProposal] = useState(null);
 
-class Proposals extends Component {
-  vote = async () => {
-    event.preventDefault();
+  const value = useContext(AppContext);
+  const { web3, loading } = value.state;
+  const router = useRouter();
+  const address = router.query.dao;
+  var proposalArray = [];
+  const proposalVoteTypes = [];
+  var counter = 0;
 
-    this.props.toggleLoading();
+  // get dao info
+  useEffect(() => {
+    async function fetchData() {
+      if(!address) {
+        return;
+      } else {
+        const instance = new web3.eth.Contract(abi, address);
+        const proposalCount = parseInt(
+          await instance.methods.proposalCount().call()
+        );
+        const totalSupply = parseInt(await instance.methods.totalSupply().call());
+        const votingPeriod = parseInt(await instance.methods.votingPeriod().call());
+        const quorum = parseInt(await instance.methods.quorum().call());
+        const supermajority = parseInt(
+          await instance.methods.supermajority().call()
+        );
 
-    let object = event.target;
-    var array = [];
-    for (let i = 0; i < object.length; i++) {
-      array[object[i].name] = object[i].value;
-    }
+        for(var i = 0; i < proposalTypes.length; i++) {
+          const voteType = await instance.methods.proposalVoteTypes(i).call();
+          proposalVoteTypes.push(voteType);
+        }
 
-    const { dao, id, approval } = array;
+        const cutoff = Date.now() / 1000 - parseInt(votingPeriod);
+        for (var i = 0; i < proposalCount; i++) {
+            var proposal = await instance.methods.proposals(i).call();
+            var proposalArrays = await instance.methods.getProposalArrays(i).call();
+            if(parseInt(proposal["creationTime"]) != 0) {
+              // add solidity contract id to array
+              proposal["id"] = i;
+              // format date for display
+              let created = new Date(parseInt(proposal["creationTime"]) * 1000);
+              proposal["created"] = created.toLocaleString();
+              //expiration
+              let expires = new Date(
+                (parseInt(proposal["creationTime"]) + parseInt(votingPeriod)) * 1000
+              );
+              proposal["expires"] = expires;
+              // * check if voting still open * //
+              if (parseInt(proposal["creationTime"]) > cutoff) {
+                proposal["open"] = true;
+                // time remaining
+                proposal["timeRemaining"] = cutoff - Date.now() / 1000;
+              } else {
+                proposal["open"] = false;
+                proposal["timeRemaining"] = 0;
+              }
+              // calculate progress bar and passing/failing
+              var passing = false;
+              let proposalType = proposal["proposalType"];
+              let yesVotes = parseInt(proposal["yesVotes"]);
+              let noVotes = parseInt(proposal["noVotes"]);
+              let voteType = proposalVoteTypes[proposalType];
 
-    const instance = new web3.eth.Contract(abi, dao);
+              if(voteType==0) { // simple majority
+                if(yesVotes > noVotes) {
+                  passing = true;
+                }
+              }
 
-    const accounts = await web3.eth.getAccounts();
-    // * first, see if they already voted * //
-    const voted = await instance.methods.voted(id, accounts[0]).call();
-    if (voted == true) {
-      alert("You already voted");
-      this.props.toggleLoading();
-    } else {
+              if (voteType==2) { // supermajority
+                let minYes = ((yesVotes + noVotes) * supermajority) / 100;
+                if(yesVotes > minYes) {
+                  passing = true;
+                }
+              }
+              // rule out any failed quorums
+              if(voteType==1 || voteType==3) {
+                let minVotes = (totalSupply * quorum) / 100;
+                let votes = yesVotes + noVotes;
+                if(votes < minVotes) {
+                  passing = false;
+                }
+              }
+              proposal["passing"] = passing;
+              if(yesVotes==0) {
+                proposal["progress"] = 0;
+              } else {
+                proposal["progress"] = (yesVotes * 100) / (yesVotes + noVotes);
+              }
+              // integrate data from array getter function
+              let amount = proposalArrays["amounts"][0];
+              proposal["amount"] = web3.utils.fromWei(amount, "ether");
+              proposal["account"] = proposalArrays["accounts"][0];
+              let payload = proposalArrays["payloads"][0];
+              proposal["payloadArray"] = payload.match(/.{0,40}/g);
+              proposal["payload"] = payload;
+              proposalArray.push(proposal);
+            } // end live proposals
+          } // end for loop
+          setProposals(proposalArray);
+          counter++;
+        }
+      }
+      fetchData();
+
+  }, [counter]);
+
+  const vote = async () => {
+      event.preventDefault();
+
+      value.setLoading(true);
+
+      let object = event.target;
+      var array = [];
+      for (let i = 0; i < object.length; i++) {
+        array[object[i].name] = object[i].value;
+      }
+
+      const { dao, id, approval } = array;
+
+      const instance = new web3.eth.Contract(abi, dao);
       try {
-        let result = await instance.methods
-          .vote(id, parseInt(approval))
-          .send({ from: accounts[0] });
+        const accounts = await web3.eth.getAccounts();
+        // * first, see if they already voted * //
+        const voted = await instance.methods.voted(id, accounts[0]).call();
+        if (voted == true) {
+          alert("You already voted");
+        } else {
+          try {
+            let result = await instance.methods
+              .vote(id, parseInt(approval))
+              .send({ from: accounts[0] });
 
-        Router.push({
-          pathname: "/daos/[dao]",
-          query: { dao: dao },
-        });
-      } catch (e) {}
+            Router.push({
+              pathname: "/daos/[dao]",
+              query: { dao: dao },
+            });
 
-      this.props.toggleLoading();
-    }
-  };
+          } catch (e) {}
 
-  process = async () => {
+        }
+
+      } catch (e) {
+
+      }
+
+      value.setLoading(false);
+    };
+
+  const process = async () => {
     event.preventDefault();
-    this.props.toggleLoading();
+    value.setLoading(true);
     let object = event.target;
     var array = [];
     for (let i = 0; i < object.length; i++) {
       array[object[i].name] = object[i].value;
     }
+    console.log("object")
+    console.log(object)
 
     const { dao, id } = array;
+    console.log(id)
 
     const instance = new web3.eth.Contract(abi, dao);
 
     try {
       const accounts = await web3.eth.getAccounts();
-      // * first, see if they already voted * //
+
       let result = await instance.methods
         .processProposal(id)
         .send({ from: accounts[0] });
@@ -95,149 +197,36 @@ class Proposals extends Component {
       alert(e);
     }
 
-    this.props.toggleLoading();
+    value.setLoading(false);
   };
 
-  render() {
-    const { dao, proposals, chainInfo } = this.props;
-    console.log(proposals);
-    console.log(chainInfo);
+  return(
+    <>
 
-    return (
+    {proposals==null ? <>Loading...</> :
       <>
-        {proposals.length == 0 ? (
-          <>
-            <Flex>
-              <Text>
-                <i>Awaiting Proposals</i>
-              </Text>
-            </Flex>
-          </>
+      {proposals.length == 0 ? (
+        <Message>Awaiting proposals</Message>
         ) : (
-          <Grid templateColumns="repeat(1, 1fr)" gap={1}>
-            {proposals.map((p, index) => (
-              <FlexOutline key={proposals}>
-                <Stack spacing={3}>
-                  <HStack>
-                    <VStack
-                      alignItems="left"
-                      //backgroundColor="kali.800"
-                      spacing={1}
-                    >
-                      <Text fontSize="md">
-                        <b>{p["description"]}</b>
-                      </Text>
-                      {p["proposalType"] == 0 ? (
-                        <>
-                          <HStack>
-                            <Icon as={BsFillPersonPlusFill} />
-                            <Text>Mint Shares</Text>
-                          </HStack>
-                          <Text fontSize="sm">Account: {p["account"]}</Text>
-                          <Text fontSize="sm">Shares: {p["amount"]}</Text>
-                        </>
-                      ) : (
-                        ""
-                      )}
-                      {p["proposalType"] == 1 ? (
-                        <>
-                          <HStack>
-                            <Icon as={BsFillPersonXFill} />
-                            <Text>Burn Shares</Text>
-                          </HStack>
-                          <Text fontSize="sm">Account: {p["account"]}</Text>
-                          <Text fontSize="sm">Shares: {p["amount"]}</Text>
-                        </>
-                      ) : (
-                        ""
-                      )}
-                      {p["proposalType"] == 2 ? (
-                        <>
-                          <HStack>
-                            <Icon as={BsFillMegaphoneFill} />
-                            <Text>Call Contract</Text>
-                          </HStack>
-                          <Text fontSize="sm">Contract: {p["account"]}</Text>
-                          <Text fontSize="sm">Payload: {p["payload"]}</Text>
-                        </>
-                      ) : (
-                        ""
-                      )}
-                      <Text fontSize="sm">
-                        <i>
-                          created: {p["created"]} <br />
-                          by: {p["proposer"]}
-                        </i>
-                      </Text>
-                    </VStack>
+          <>
 
-                    <Spacer />
-
-                    <VStack>
-                      <Badge colorScheme="green">
-                        yes: {web3.utils.fromWei(p["yesVotes"])}
-                      </Badge>
-                      <Badge colorScheme="red">
-                        no: {web3.utils.fromWei(p["noVotes"])}
-                      </Badge>
-
-                      <Spacer />
-
-                      <HStack>
-                        {p["open"] ? (
-                          <>
-                            <form onSubmit={this.vote}>
-                              <Input
-                                type="hidden"
-                                name="dao"
-                                value={this.props.dao["address"]}
-                              />
-                              <Input type="hidden" name="id" value={p["id"]} />
-                              <Input type="hidden" name="approval" value={1} />
-                              <IconButton
-                                icon={<BsHandThumbsUpFill />}
-                                type="submit"
-                              />
-                            </form>
-
-                            <form onSubmit={this.vote}>
-                              <Input
-                                type="hidden"
-                                name="dao"
-                                value={this.props.dao["address"]}
-                              />
-                              <Input type="hidden" name="id" value={p["id"]} />
-                              <Input type="hidden" name="approval" value={0} />
-                              <IconButton
-                                icon={<BsHandThumbsDownFill />}
-                                type="submit"
-                              />
-                            </form>
-                          </>
-                        ) : (
-                          <>
-                            <form onSubmit={this.process}>
-                              <Input
-                                type="hidden"
-                                name="dao"
-                                value={this.props.dao["address"]}
-                              />
-                              <Input type="hidden" name="id" value={p["id"]} />
-                              <Button type="submit">Process</Button>
-                            </form>
-                          </>
-                        )}
-                      </HStack>
-                    </VStack>
-                  </HStack>
-                </Stack>
-              </FlexOutline>
-            ))}
-          </Grid>
-        )}
+        <Grid templateColumns={{sm: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)'}}>
+          {proposals.map((p, index) => (
+            <ProposalRow
+              key={index} p={p}
+              address={address}
+              vote={vote}
+              process={process}
+              setActiveProposal={setActiveProposal}
+            />
+          ))}
+        </Grid>
+        </>
+        )
+        }
       </>
-    );
-  }
-}
+    }
 
-export default Proposals;
+    </>
+  )
+}
