@@ -10,11 +10,11 @@ export default function Ricardian() {
   const value = useContext(AppContext);
   const { dao } = value.state;
   const [isClient, setIsClient] = useState(false)
-  const [series, setSeries] = useState(0)
+  const [ricardianId, setRicardianId] = useState(0)
 
   useEffect(() => {
     setIsClient(true)
-    setSeries(dao["ricardian"]["series"])
+    setRicardianId(dao["ricardian"]["series"])
   }, [])
   
   return (
@@ -40,7 +40,7 @@ export default function Ricardian() {
           </ListItem>
           {isClient && (
             <PDFDownloadLink
-              document={<RicardianTemplate series={series} />}
+              document={<RicardianTemplate ricardianId={ricardianId} />}
               fileName="FORM"
             >
               {({ loading }) =>
