@@ -37,21 +37,24 @@ export default function Ricardian() {
             <Link passHref href={dao["ricardian"]["masterOperatingAgreement"]}>
               <Icon as={BsFillArrowUpRightSquareFill} />
             </Link>
+          <ListItem>
+            <Text>Series Operating Agreement: </Text>
+            {isClient && (
+              <PDFDownloadLink
+                document={<RicardianTemplate ricardianId={ricardianId} />}
+                fileName="FORM"
+              >
+                {({ loading }) =>
+                  loading ? (
+                    <button>Loading Document...</button>
+                  ) : (
+                    <button>Download</button>
+                  )
+                }
+              </PDFDownloadLink>
+            )}
           </ListItem>
-          {isClient && (
-            <PDFDownloadLink
-              document={<RicardianTemplate ricardianId={ricardianId} />}
-              fileName="FORM"
-            >
-              {({ loading }) =>
-                loading ? (
-                  <button>Loading Document...</button>
-                ) : (
-                  <button>Download</button>
-                )
-              }
-            </PDFDownloadLink>
-          )}
+          </ListItem>
         </UnorderedList>
       )}
     </>
