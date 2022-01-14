@@ -72,6 +72,7 @@ const styles = StyleSheet.create({
   },
   bulleted_list: {
     fontSize: 12,
+    marginBottom: 12,
     textIndent: 30,
     textAlign: "justify",
     fontFamily: "Times-Roman",
@@ -94,7 +95,6 @@ const styles = StyleSheet.create({
 })
 
 const Br = () => "\n"
-const Tab = () => "\t"
 const Indent = () => "   "
 
 const RicardianTemplate = ({ ricardianId }) => {
