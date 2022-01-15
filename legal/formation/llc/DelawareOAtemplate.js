@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
 const Br = () => "\n"
 const Indent = () => "   "
 
-const DelawareLLCtemplate = ({ ricardianId }) => {
+const DelawareLLCtemplate => {
   return (
     <Document>
       <Page style={styles.body}>
